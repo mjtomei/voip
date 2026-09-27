@@ -1,0 +1,21 @@
+# Copy beside compose.yaml as compose.local.yaml (ignored by Git).
+# Set HOST_CODEX_HOME in .env to the absolute host Codex home.
+# Load explicitly: docker compose -f compose.yaml -f compose.local.yaml ...
+# This exposes native history and potentially account files to the container.
+# It enables the metadata access needed by *2#/*3# when server.toml also sets
+# operator.state_database to HOST_CODEX_HOME/state_5.sqlite as a literal path.
+services:
+  voice:
+    environment:
+      CODEX_HOME: ${HOST_CODEX_HOME:?Set the absolute host Codex home}
+    volumes:
+      - type: bind
+        source: ${HOST_CODEX_HOME}
+        target: ${HOST_CODEX_HOME}
+        read_only: true
+      # Optional: uncomment for a project registered in service.projects and
+      # set VOICE_PROJECT_DIR in .env. Use the same absolute path on both sides.
+      # Repeat this bind for any additional registered project directories.
+      # - type: bind
+      #   source: ${VOICE_PROJECT_DIR:?Set the absolute external project directory}
+      #   target: ${VOICE_PROJECT_DIR}

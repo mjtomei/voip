@@ -1,0 +1,2 @@
+# Patch context carries meaningful leading/trailing whitespace.
+*.patch -whitespace

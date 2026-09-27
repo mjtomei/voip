@@ -1,0 +1,12 @@
+--- a/src/sipreg/reg.c
++++ b/src/sipreg/reg.c
+@@ -435,6 +435,9 @@
+ 	if (!reg)
+ 		return EINVAL;
+ 
++	if (reg->req)
++		return EALREADY;
++
+ 	return request(reg, true);
+ }
+ 

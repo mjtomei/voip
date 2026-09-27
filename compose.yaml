@@ -1,0 +1,28 @@
+services:
+  voice:
+    build:
+      context: .
+      target: runtime
+    image: voice-operator:runtime
+    container_name: ${VOIP_CONTAINER_NAME:-voice-operator}
+    user: "${VOICE_UID:-1000}:${VOICE_GID:-1000}"
+    init: true
+    restart: unless-stopped
+    environment:
+      VOIP_ROOT: ${VOICE_WORKSPACE:?Set the absolute host project directory}
+      HOME: /tmp/voice-home
+      XDG_RUNTIME_DIR: /tmp/voip-runtime
+      PULSE_SERVER: unix:/tmp/voip-runtime/pulse/native
+    volumes:
+      - type: bind
+        source: ${VOICE_WORKSPACE}
+        target: ${VOICE_WORKSPACE}
+      - type: bind
+        source: ${CODEX_SOCKET_DIR:?Set the host Codex control-socket directory}
+        target: /codex-control
+        read_only: true
+    working_dir: ${VOICE_WORKSPACE}
+    command: ["voip", "service", "run"]
+    stop_grace_period: 60s
+    # No host audio, Docker socket, host PID namespace, privileged mode or exposed ports.
+    # Add matching-path mounts for each external project registered in server.toml.

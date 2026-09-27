@@ -1,0 +1,58 @@
+# Copy to server.toml in your private VOICE_WORKSPACE for a container deployment.
+# Replace literal paths below; TOML does not expand .env or shell variables.
+# See docs/CONTAINERS.md and compose.local.yaml.example.
+[audio]
+incoming_sink = "voip_in"
+microphone = "voip_mic"
+outgoing_sink = "voip_out"
+rate = 48000
+
+[operator]
+session = "voice-operator"
+tmux_socket = "/tmp/voip-runtime/operator-tmux.sock"
+codex = "codex"
+daemon_socket = "/codex-control/app-server-control.sock"
+manage_daemon = false
+frontend = "voice"
+restart_delay_seconds = 30
+extra_args = []
+# read-only, workspace-write or danger-full-access. The host Docker CLI wrapper
+# below needs danger-full-access; opt in explicitly to permit operator call and
+# mailbox commands through Docker, as explained in the container guide.
+permissions = "read-only"
+# This command runs on the host. Use the checkout path and actual container name.
+cli_command = ["/home/operator/voip/bin/voip-container", "--container", "voice-operator"]
+# Optional native history access for *2#/*3#: enable the matching Compose overlay
+# before uncommenting, and replace this with the host Codex home's actual path.
+# state_database = "/home/operator/.codex/state_5.sqlite"
+# Optional host tool cwd, otherwise this private workspace. Use fresh operator
+# conversations when changing a saved thread's working directory.
+# working_directory = "/home/operator"
+
+[sip]
+domain = "YOUR-DOMAIN.sip.twilio.com"
+username = "operator"
+control_port = 4444
+
+[twilio]
+phone_number = "+12025550100"
+
+[service]
+recipients_file = "recipients.toml"
+sessions_dir = "sessions"
+schedules_file = "schedules.toml"
+credentials_file = "state/twilio.env"
+
+# Register external project configuration and mount it at the same absolute path.
+# [service.projects]
+# daily = "/home/operator/mobile-project"
+
+[directory_extensions]
+enabled = false
+root = "/home/operator"
+recipients = ["alice"]
+mode = "smart"
+interval_seconds = 15
+# The host discovery helper uses this socket, not operator.tmux_socket above.
+tmux_socket = ""
+snapshot_file = "state/host-directories.json"

@@ -1,0 +1,7 @@
+# Shared audio, operator, SIP, and Twilio settings come from provider_root.
+[service]
+provider_root = "/home/operator/voip"
+recipients_file = "voice/recipients.toml"
+sessions_dir = "voice/sessions"
+session_ids = ["daily"]
+schedules_file = "voice/schedules.toml"

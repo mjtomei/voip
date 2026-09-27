@@ -1,0 +1,9 @@
+#!/bin/sh
+# Host-side CLI used by the host Codex operator. Never mount Docker into the container.
+set -eu
+container=${VOIP_CONTAINER_NAME:-voice-operator}
+if [ "${1:-}" = --container ]; then
+    container=$2
+    shift 2
+fi
+exec docker exec -i "$container" voip "$@"

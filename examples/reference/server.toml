@@ -1,0 +1,43 @@
+# Faithful provider reference; substitute the paths, domain, numbers and recipients.
+# Copy these files into your private installation, never edit them to hold secrets here.
+
+[audio]
+incoming_sink = "voip_in"
+microphone = "voip_mic"
+outgoing_sink = "voip_out"
+rate = 48000
+
+[operator]
+# Supported levels: read-only, workspace-write, danger-full-access.
+# The original private installation explicitly chooses danger-full-access.
+permissions = "read-only"
+session = "voice-operator"
+tmux_socket = ""
+codex = "codex"
+daemon_socket = ""
+frontend = "voice"
+restart_delay_seconds = 30
+extra_args = []
+
+[sip]
+domain = "YOUR-DOMAIN.sip.twilio.com"
+username = "operator"
+
+[twilio]
+phone_number = "+12025550100"
+
+[service]
+credentials_file = "state/twilio.env"
+recipients_file = "recipients.toml"
+sessions_dir = "sessions"
+schedules_file = "schedules.toml"
+
+[service.projects]
+daily = "/home/operator/mobile-project"
+
+[directory_extensions]
+enabled = true
+root = "/home/operator"
+recipients = ["alice"]
+mode = "smart"
+interval_seconds = 15

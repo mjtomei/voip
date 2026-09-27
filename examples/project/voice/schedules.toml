@@ -1,0 +1,18 @@
+# Daily standup: explicitly enable after arranging recipient availability.
+[[schedules]]
+id = "daily-standup"
+enabled = false
+cron = "0 9 * * *"
+timezone = "America/Chicago"
+session = "daily"
+recipient = "bob"
+reason = "Daily Example App standup: yesterday, schedule adjustments, then today's detailed plan"
+agenda_file = "../prompts/daily-agenda.md"
+mode = "non_preemptive"
+misfire = "skip"
+ttl_seconds = 3600
+
+[schedules.redial]
+delays_seconds = [300, 600]
+max_attempts = 3
+retry_on = ["busy", "no-answer"]

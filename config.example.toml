@@ -1,0 +1,34 @@
+# Copy to server.toml. Local overrides and all runtime state are ignored by Git.
+[audio]
+incoming_sink = "voip_in"
+microphone = "voip_mic"
+outgoing_sink = "voip_out"
+rate = 48000
+
+[operator]
+session = "voice-operator"
+# Empty uses the normal tmux socket, so the operator sees your other sessions.
+tmux_socket = ""
+codex = "codex"
+# Empty uses the control socket under CODEX_HOME (normally ~/.codex).
+daemon_socket = ""
+manage_daemon = true
+# Headless sessions never request interactive approval. Opt into broader access explicitly.
+# Supported levels: read-only, workspace-write, danger-full-access.
+permissions = "read-only"
+# state_database = "/path/to/codex/state_5.sqlite"
+# cli_command = ["/absolute/path/to/voip"]
+frontend = "voice"
+restart_delay_seconds = 30
+# These are passed as individual arguments; no shell evaluation.
+extra_args = []
+# "voice" runs this project's audio frontend against the same saved Codex
+# App Server thread. "text" runs the ordinary CLI for diagnostics.
+# extra_args above apply only to the text frontend.
+
+[sip]
+domain = "YOUR-DOMAIN.sip.twilio.com"
+username = "operator"
+# Baresip control/events socket; always bound to loopback, never exposed remotely.
+control_port = 4444
+# Password is entered with `python3 voip.py sip configure`, never stored here.

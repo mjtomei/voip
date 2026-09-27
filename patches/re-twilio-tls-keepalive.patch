@@ -1,0 +1,40 @@
+--- a/src/sipreg/reg.c
++++ b/src/sipreg/reg.c
+@@ -133,14 +133,33 @@
+ static void start_outbound(struct sipreg *reg, const struct sip_msg *msg)
+ {
+ 	const struct sip_hdr *flowtimer;
+-
+-	if (!sip_msg_hdr_has_value(msg, SIP_HDR_REQUIRE, "outbound"))
+-		return;
++	const char suffix[] = ".sip.twilio.com";
++	struct pl host = msg->to.uri.host;
++	uint32_t interval = 0;
++
++	if (!sip_msg_hdr_has_value(msg, SIP_HDR_REQUIRE, "outbound")) {
++		/* Twilio accepts registration but omits Require: outbound.
++		 * Keep its client-initiated TLS flow alive for incoming calls.
++		 * Scope this compatibility fallback to Twilio TLS accounts;
++		 * other registrars retain upstream negotiation behavior.
++		 * https://github.com/baresip/baresip/discussions/2614
++		 */
++		if (msg->tp != SIP_TRANSP_TLS || host.l <= sizeof(suffix)-1)
++			return;
++		host.p += host.l - (sizeof(suffix)-1);
++		host.l = sizeof(suffix)-1;
++		if (pl_strcasecmp(&host, suffix))
++			return;
++		interval = 25;
++		re_printf("sipreg: enabling Twilio TLS keepalive (25 seconds)\n");
++	}
+ 
+ 	flowtimer = sip_msg_hdr(msg, SIP_HDR_FLOW_TIMER);
++	if (!interval && flowtimer)
++		interval = pl_u32(&flowtimer->val);
+ 
+ 	(void)sip_keepalive_start(&reg->ka, reg->sip, msg,
+-				  flowtimer ? pl_u32(&flowtimer->val) : 0,
++				  interval,
+ 				  keepalive_handler, reg);
+ }
+ 

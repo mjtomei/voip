@@ -1,0 +1,13 @@
+default_recipient = "alice"
+
+[recipients.alice]
+number = "+12025550101"
+pin_file = "state/alice-pin"
+sessions = ["default", "daily"]
+incoming_session = "default"
+
+[recipients.bob]
+number = "+12025550102"
+pin_file = "state/bob-pin"
+sessions = ["daily"]
+incoming_session = "daily"

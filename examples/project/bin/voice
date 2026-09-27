@@ -1,0 +1,5 @@
+#!/bin/sh
+# Use the installed host CLI (or set VOICE_CLI to its absolute path).
+set -eu
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec "${VOICE_CLI:-voip}" --root "$project_root" --session daily "$@"

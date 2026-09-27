@@ -1,0 +1,7 @@
+default_recipient = "bob"
+
+[recipients.bob]
+number = "+12025550102"
+pin_file = "voice/private/bob-pin.json"
+sessions = ["daily"]
+incoming_session = "daily"

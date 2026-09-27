@@ -1,0 +1,18 @@
+# Each actual outgoing attempt gets a fresh conversation; a reused active call
+# is never reset. Incoming calls keep the current conversation.
+reset_on_outgoing_call = true
+control_port = 15445
+
+[redial]
+max_attempts = 2
+delay_seconds = 300
+backoff_multiplier = 2
+max_delay_seconds = 1800
+retry_on = ["busy", "no-answer"]
+
+[prompts]
+initial_file = "../prompts/daily-initial.txt"
+connection = "{{default}} Keep questions focused and ask one at a time."
+disconnection = "{{default}} Write down agreed next steps and unresolved questions."
+preparation = "{{default}} Make the opening a concise explanation followed by the decision needed."
+request = "{{default}} Relate the topic to the current work when that context is available."

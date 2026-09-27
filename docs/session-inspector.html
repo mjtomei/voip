@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<!--REFRESH--><title>Voice operator · session timeline</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101722;color:#e8edf5}body{max-width:1160px;margin:0 auto;padding:30px 22px}h1{font-size:27px;margin-bottom:7px}h2{font-size:18px}p{line-height:1.6}.muted{color:#a5b5c8}.notice{border-left:3px solid #eab569;background:#28251f;padding:12px 16px;font-size:14px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:22px 0}.card{background:#192534;border:1px solid #304054;border-radius:8px;padding:16px}.card strong{font-size:24px;display:block;margin-top:8px}.toolbar{display:flex;gap:18px;align-items:center;flex-wrap:wrap}select{background:#192534;color:inherit;border:1px solid #485c72;border-radius:6px;padding:10px;max-width:100%}label{font-size:14px}svg{width:100%;min-width:720px;background:#152130;border-radius:8px}svg text{font-family:system-ui,sans-serif;font-size:12px;fill:#c8d4e2}.chart{overflow-x:auto;margin-top:16px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;border-bottom:1px solid #304054;padding:10px 8px;vertical-align:top}th{color:#a5b5c8}td:first-child{white-space:nowrap}.scroll{max-height:450px;overflow:auto;margin-top:12px}code{font-size:13px}a{color:#95c9ff}#detail{min-height:28px}.pill{border-radius:4px;padding:3px 6px;background:#263749}footer{margin-top:24px;font-size:13px;color:#a5b5c8}.empty{padding:20px}
+</style></head><body>
+<h1>Voice operator · session timeline</h1><p id="stamp" class="muted"></p>
+<p class="notice"><b>Recorded activity, not an audio latency measurement.</b> Voice transcript timestamps can be delayed. A completed Codex turn does not prove a background task finished or a worker stopped. This view does not inventory every worker's tasks.</p>
+<div class="cards"><div class="card">Backend status at observation<strong id="backend"></strong></div><div class="card">Frontend connection flag<strong id="frontend"></strong><small class="muted">Does not prove model responsiveness</small></div><div class="card">Recorded backend turns<strong id="turnCount"></strong></div></div>
+<h2>Activity timeline</h2><div class="toolbar"><select id="scope" aria-label="Timeline period"></select><label><input type="checkbox" id="voice" checked> Saved speech</label><label><input type="checkbox" id="transport"> Connection events</label></div>
+<p id="turnInfo" class="muted"></p><div class="chart"><svg id="timeline" viewBox="0 0 1080 260" role="img" aria-label="Backend, tool and saved speech event timeline"></svg></div><p id="detail" class="muted">Point to or focus a marker to inspect its evidence.</p>
+<div class="scroll"><table><thead><tr><th>Record time (local)</th><th>Stage</th><th>Event</th><th>Evidence / limitation</th></tr></thead><tbody id="events"></tbody></table></div>
+<h2>tmux sessions at observation</h2><p class="muted">Presence and attachment only. These are not verified task states.</p><div id="tmux"></div>
+<footer><p id="identity"></p><p>Refresh once: <code>python3 session_inspector.py</code><br>Refresh continuously: <code>python3 session_inspector.py --watch</code> (Ctrl-C stops; browser reloads every ten seconds). This local file uses no external assets or network requests. Snapshot age above remains authoritative if the collector stops.</p></footer>
+<script>
+const data=/*SNAPSHOT*/null;
+if(!data){document.getElementById('stamp').textContent='Template: run python3 session_inspector.py to generate a private snapshot.';}
+else{
+const el=id=>document.getElementById(id), fmt=t=>new Date(t).toLocaleString(undefined,{hour12:false}), colors={backend:'#79a9ff',tools:'#72d6ba',voice:'#efba76',transport:'#b5a3eb'};
+function age(){el('stamp').textContent=`Snapshot ${fmt(data.generated)} · age ${Math.max(0,Math.round((Date.now()-Date.parse(data.generated))/1000))} s · backend observed ${data.backend_observed?fmt(data.backend_observed):'not available'}`;}age();setInterval(age,1000);
+el('backend').textContent=data.backend;el('frontend').textContent=data.frontend.voice;el('turnCount').textContent=data.turns.length;el('identity').textContent=`Saved operator ${data.thread} · ${data.skipped_lines} malformed/incomplete lines skipped`;
+const option=(value,label)=>{const o=document.createElement('option');o.value=value;o.textContent=label;el('scope').append(o)};
+option('all','All recorded history');for(const t of data.turns)option(t.id,`Turn ${t.number}: ${t.label} · ${fmt(t.start)}`);
+const query=new URLSearchParams(location.search);el('scope').value=query.get('turn')||(data.turns[0]?.id||'all');if(el('scope').selectedIndex<0)el('scope').value='all';
+el('voice').checked=query.get('speech')!=='0';el('transport').checked=query.get('connections')==='1';
+function draw(){
+ const t=data.turns.find(t=>t.id===el('scope').value), next=t?data.turns.find(n=>n.start>t.start):null;
+ let ev=data.events.filter(e=>(el('voice').checked||e.lane!=='voice')&&(el('transport').checked||e.lane!=='transport'));
+ if(t)ev=ev.filter(e=>e.at>=t.start-15000&&e.at<=(next?.start||((t.end||t.start)+180000))&&(!next||e.at<next.start));
+ const intervals=t?t.tools.filter(c=>c.end!==null&&c.end>=c.start).map(c=>`${c.label}: ${((c.end-c.start)/1000).toFixed(3)} s call/result record interval`):[];
+ el('turnInfo').textContent=t?`${t.state}; ${t.end!==null?((t.end-t.start)/1000).toFixed(3)+' s start/end record interval':'no terminal record'}. ${intervals.join(' · ')}. Voice events in this period are not automatically correlated to this turn.`:'Overview of retained records; missing events are not proof of inactivity.';
+ const svg=el('timeline');svg.replaceChildren();el('events').replaceChildren();if(!ev.length){el('detail').textContent='No records in this selection.';return;}
+ const lo=ev.reduce((a,e)=>Math.min(a,e.at),t?.start??Infinity),hi=ev.reduce((a,e)=>Math.max(a,e.at),lo+1000),x=v=>145+(v-lo)/(hi-lo)*900,ys={backend:45,tools:100,voice:155,transport:210};
+ function shape(tag,attrs,text){const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);if(text!==undefined)n.textContent=text;svg.append(n);return n;}
+ for(const[lane,y]of Object.entries(ys)){shape('text',{x:12,y:y+4},lane==='voice'?'Saved speech':lane==='tools'?'Tools':lane==='backend'?'Codex backend':'Connection');shape('line',{x1:145,x2:1045,y1:y,y2:y,stroke:'#324459'});}
+ for(let i=0;i<=5;i++){const p=lo+(hi-lo)*i/5;shape('text',{x:x(p),y:247,'text-anchor':i===5?'end':i===0?'start':'middle'},new Date(p).toLocaleTimeString(undefined,{hour12:false}));}
+ for(const turn of data.turns){for(const span of [{start:turn.start,end:turn.end,lane:'backend'},...turn.tools.map(c=>({...c,lane:'tools'}))]){if(span.end===null||span.end<lo||span.start>hi)continue;shape('rect',{x:x(Math.max(lo,span.start)),y:ys[span.lane]-5,width:Math.max(2,x(Math.min(hi,span.end))-x(Math.max(lo,span.start))),height:10,fill:colors[span.lane],opacity:.35});}}
+ for(const e of ev){const n=shape('circle',{cx:x(e.at),cy:ys[e.lane],r:5,fill:colors[e.lane],tabindex:0,role:'img','aria-label':e.label});const detail=`${fmt(e.at)} · ${e.label}. ${e.detail}`;n.addEventListener('mouseenter',()=>el('detail').textContent=detail);n.addEventListener('focus',()=>el('detail').textContent=detail);const row=document.createElement('tr');for(const value of [fmt(e.at),e.lane,e.label,e.detail]){const cell=document.createElement('td');cell.textContent=value;row.append(cell)}el('events').append(row);}
+}
+for(const id of ['scope','voice','transport'])el(id).addEventListener('change',()=>{draw();try{const q=new URLSearchParams({turn:el('scope').value,speech:el('voice').checked?'1':'0',connections:el('transport').checked?'1':'0'});history.replaceState(null,'','?'+q)}catch{}});
+if(!data.tmux_available)el('tmux').textContent='tmux status unavailable.';else if(!data.tmux.length)el('tmux').textContent='No sessions observed.';else{const table=document.createElement('table');for(const entry of [['Session','Windows','Attached clients'],...data.tmux]){const row=document.createElement('tr');for(const value of entry){const cell=document.createElement('td');cell.textContent=value;row.append(cell)}table.append(row)}el('tmux').append(table)}draw();
+}
+</script></body></html>

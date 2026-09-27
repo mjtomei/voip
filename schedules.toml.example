@@ -1,0 +1,19 @@
+[[schedules]]
+id = "daily-review"
+enabled = false
+cron = "0 9 * * 1-5"
+timezone = "America/Los_Angeles"
+session = "daily"
+recipient = "bob"
+reason = "Daily project review"
+agenda_file = "daily-agenda.txt"
+mode = "non_preemptive"
+ttl_seconds = 1800
+misfire = "skip"
+# Skipped offline occurrences are counted in the next matching connection notice.
+max_lateness_seconds = 600
+
+[schedules.redial]
+max_attempts = 2
+delay_seconds = 300
+retry_on = ["busy", "no-answer"]

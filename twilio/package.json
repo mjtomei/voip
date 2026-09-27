@@ -1,0 +1,11 @@
+{
+  "name": "codex-phone-call-entry",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "test": "node --test test.js outgoing.test.js access.test.js pin-delivery.test.js extensions.test.js directories.test.js call-routing.test.js"
+  },
+  "devDependencies": {
+    "twilio": "6.1.1"
+  }
+}

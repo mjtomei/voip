@@ -1,0 +1,26 @@
+name: Clean container tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check-public-tree.py
+      - run: docker build --target test -t voice-operator:test .
+      - run: docker network create --internal voice-test-isolated
+      - run: docker run --name voice-tests --network voice-test-isolated voice-operator:test
+      - name: Collect synthetic test evidence
+        if: always()
+        run: docker cp voice-tests:/opt/voip/state test-evidence || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synthetic-test-evidence
+          path: test-evidence/acceptance
+      - if: always()
+        run: |
+          docker rm -f voice-tests || true
+          docker network rm voice-test-isolated || true

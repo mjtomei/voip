@@ -1,0 +1,19 @@
+# Keep one conversation across calls, as in the original installation.
+reset_on_outgoing_call = false
+extension = "100"
+
+[redial]
+max_attempts = 1
+# Includes the first call. Raise only when repeated calls are wanted.
+delay_seconds = 300
+backoff_multiplier = 1
+max_delay_seconds = 3600
+retry_on = ["busy", "no-answer"]
+
+[prompts]
+# Omit a setting to retain its built-in prompt.
+# initial = "You are a collaborative work partner. Keep phone replies concise."
+# connection = "{{default}}"
+# disconnection = "{{default}}"
+# preparation = "{{default}}"
+# request = "{{default}}"

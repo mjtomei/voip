@@ -1,0 +1,60 @@
+--- a/tmux_resume.py
++++ b/tmux_resume.py
+@@ -837,9 +837,22 @@
+     return record
+ 
+ 
++def excluded_sessions():
++    """Sessions owned by external supervisors, omitted from default save/restore."""
++    path = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'tmux-resume/config.json'
++    config = read_json(path) if path.exists() else {}
++    if not isinstance(config, dict):
++        raise RuntimeError(f'Invalid JSON configuration: {path}')
++    names = config.get('exclude_sessions', [])
++    if not isinstance(names, list) or not all(isinstance(name, str) and name for name in names):
++        raise RuntimeError('exclude_sessions must be an array of exact session names')
++    return set(names)
++
++
+ def select_session_records(sessions, names):
+     if not names:
+-        return sessions
++        excluded = excluded_sessions()
++        return [session for session in sessions if session['session_name'] not in excluded]
+     selected = set()
+     available = {s['session_name'] for s in sessions}
+     for name in names:
+@@ -854,15 +867,20 @@
+ 
+ 
+ def select_snapshot(data, names):
+-    if not names:
+-        return data
++    original_windows = data['windows']
+     data = copy.deepcopy(data)
+     data['sessions'] = select_session_records(data['sessions'], names)
+     windows = {link['id'] for s in data['sessions'] for link in s['links']}
+     data['windows'] = {key: value for key, value in data['windows'].items() if key in windows}
+     locations = tuple(p['location'] + ':' for w in data['windows'].values() for p in w['panes'])
++    removed_locations = tuple(p['location'] + ':' for key, w in original_windows.items()
++                              if key not in windows for p in w['panes'])
+     for kind in ('warnings', 'blockers'):
+-        data[kind] = [message for message in data[kind] if message.startswith(locations)]
++        if names:
++            data[kind] = [message for message in data[kind] if message.startswith(locations)]
++        else:
++            # Exclusion must not hide global warnings or close blockers.
++            data[kind] = [message for message in data[kind] if not message.startswith(removed_locations)]
+     return data
+ 
+ 
+@@ -1139,7 +1157,8 @@
+             parts = matching
+     targets = session_targets([(snapshot_socket(data), data['sessions']) for _, data in parts], names)
+     parts = [(parts[i][0], select_snapshot(parts[i][1], selected)) for i, selected in targets.items()]
+-    if socket and len(parts) != 1:
++    parts = [(path, data) for path, data in parts if data['sessions']]
++    if socket and parts and len(parts) != 1:
+         raise RuntimeError('--socket must match a saved server or target a single selected server; nothing restored')
+     return parts
+ 

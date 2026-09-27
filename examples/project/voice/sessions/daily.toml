@@ -1,0 +1,15 @@
+reset_on_outgoing_call = false
+extension = "200"
+control_port = 15446
+
+[redial]
+delays_seconds = [300, 600]
+max_attempts = 3
+retry_on = ["busy", "no-answer"]
+
+[prompts]
+initial_file = "../../prompts/operator.md"
+preparation_file = "../../prompts/preparation.md"
+connection_file = "../../prompts/connection.md"
+disconnection_file = "../../prompts/disconnection.md"
+request_file = "../../prompts/request.md"

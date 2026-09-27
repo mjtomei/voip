@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+source_dir=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")/.." && pwd)
+tools_dir=${VOIP_TOOLS_DIR:-"$source_dir/.tools"}
+if [ ! -x "$tools_dir/voice-venv/bin/python" ]; then
+    echo 'Install dependencies first: python3 scripts/install.py' >&2
+    exit 1
+fi
+exec "$tools_dir/voice-venv/bin/python" "$source_dir/voip.py" "$@"

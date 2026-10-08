@@ -220,9 +220,9 @@ class CallEvents:
             elif previous.get('state') == 'submitted':
                 text += ' Voice reconnected to the same call; do not repeat the greeting unless asked.'
             else:
-                from voice_config import operator_identity
+                from voice_config import operator_identity, current_prompts
                 label = operator_identity(self.project)['label']
-                custom = self.project.profile['prompts'].get('connection', '').replace('{{default}}', '').strip()
+                custom = current_prompts(self.project).get('connection', '').replace('{{default}}', '').strip()
                 greeting = ('Follow the configured connection prompt for your greeting and identify yourself as '
                             + json.dumps(label) + '. ' if custom else
                             'Use this greeting: ' + json.dumps("You're with the " + label + '. How can I help?') + '. ')

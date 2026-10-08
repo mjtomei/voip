@@ -139,3 +139,24 @@ agenda_file="agenda.txt"
     def test_disabled_schedule_creates_nothing(self):
         (self.root/'schedules.toml').write_text('[[schedules]]\nid="disabled"\nenabled=false\n')
         self.assertEqual(self.scheduler.tick(),[]); self.assertFalse(Requests(self.project).load())
+
+    def test_live_reschedule_changes_future_occurrences_without_cancelling_pending_retry(self):
+        self.write_schedule(cron='0 9 * * *')
+        self.scheduler.tick()  # 09:00 local: the existing request keeps its identity.
+        original = Requests(self.project).load()
+        self.write_schedule(cron='0 18 * * 1-5')
+        self.now += 60
+        self.assertEqual(self.scheduler.tick(), [])
+        upcoming = self.scheduler.next(1)[0]
+        self.assertEqual(upcoming['local_time'], '2026-09-21T18:00:00-07:00')
+        self.assertEqual(Requests(self.project).load(), original)
+        self.now = stamp('2026-09-21T16:00:00+00:00')  # Old morning slot.
+        self.assertEqual(self.scheduler.tick(), [])
+        self.now = stamp('2026-09-22T01:00:00+00:00')  # New Monday evening slot.
+        self.scheduler.tick()
+        self.assertEqual(len(Requests(self.project).load()), 2)
+        self.write_schedule(cron='0 18 * * 1-5', extra='enabled=false')
+        self.assertEqual(self.scheduler.next(1), [])
+        self.now += 86400
+        self.assertEqual(self.scheduler.tick(), [])
+        self.assertEqual(len(Requests(self.project).load()), 2)

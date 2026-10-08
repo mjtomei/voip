@@ -158,6 +158,10 @@ file. Schedules load each tick; use `config check` and `schedule next` before
 enabling one. Copy the example agenda and session too, and change placeholder
 numbers and PIN file paths locally before deployment.
 
+Callers can ask the operator to edit their own meetings through the ordinary
+file/CLI workflow. See [changing meeting settings during a call](SESSION-SETTINGS.md)
+for availability, validation, queued retries and prompt changes without a reset.
+
 ```toml
 [[schedules]]
 id = "daily-review"

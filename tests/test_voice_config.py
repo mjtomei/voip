@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 from service_fixture import ServiceFixture
 from service_config import check_config, access_bytes
 from voice_config import prompt, recipients, resolve_recipient
@@ -49,6 +50,45 @@ connection = "{{default}} Ask about {{recipient_id}}."
         self.assertEqual(prompt(p, 'connection', 'Connected.', recipient_id='bob'), 'Connected. Ask about bob.')
         (self.root / 'sessions/team.toml').write_text('[prompts]\nconnection="{{typo}}"\n')
         with self.assertRaises(SetupError): Project(self.root, 'team')
+
+    def test_existing_frontend_reads_edited_files_and_inline_prompts_without_reset(self):
+        profile = self.root / 'sessions/team.toml'
+        profile.write_text('[prompts]\ninitial_file="initial.txt"\nconnection_file="hello.txt"\n'
+                           'disconnection="Original review."\n')
+        initial = profile.parent / 'initial.txt'
+        hello = profile.parent / 'hello.txt'
+        initial.write_text('Original routine.')
+        hello.write_text('{{default}} Original greeting.')
+        p = Project(self.root, 'team')
+        thread, audio, port, permissions = p.thread_id(), dict(p.audio), p.sip['control_port'], p.permissions()
+        self.assertIn('Original routine.', p.instructions()['developerInstructions'])
+        initial.write_text('Use the new working hours.')
+        hello.write_text('{{default}} New greeting for {{recipient_id}}.')
+        profile.write_text('control_port=23456\npermissions="workspace-write"\n' +
+                           profile.read_text().replace('Original review.', 'Review the revised routine.'))
+        self.assertEqual(prompt(p, 'connection', 'Connected.', recipient_id='bob'),
+                         'Connected. New greeting for bob.')
+        self.assertEqual(prompt(p, 'disconnection', 'Ended.'), 'Review the revised routine.')
+        self.assertIn('Use the new working hours.', p.instructions()['developerInstructions'])
+        self.assertEqual((p.thread_id(), p.audio, p.sip['control_port'], p.permissions()),
+                         (thread, audio, port, permissions))
+
+    def test_invalid_live_edit_retains_last_good_prompts_but_validation_fails(self):
+        profile = self.root / 'sessions/team.toml'
+        profile.write_text('[prompts]\nconnection="Known good greeting."\n')
+        p = Project(self.root, 'team')
+        for text in ['[prompts', '[prompts]\nconnection="{{unknown}}"\n',
+                     '[prompts]\nconnection_file="missing.txt"\n']:
+            profile.write_text(text)
+            with self.assertRaises(SetupError): Project(self.root, 'team')
+            with patch('voice_config.print') as warning:
+                self.assertEqual(prompt(p, 'connection', 'Default.'), 'Known good greeting.')
+                self.assertEqual(prompt(p, 'connection', 'Default.'), 'Known good greeting.')
+                warning.assert_called_once()
+            profile.write_text('[prompts]\nconnection="Known good greeting."\n')
+            prompt(p, 'connection', 'Default.')
+        profile.write_text('[prompts]\nconnection="Repaired greeting."\n')
+        self.assertEqual(prompt(p, 'connection', 'Default.'), 'Repaired greeting.')
 
     def test_port_collision_fails_preflight(self):
         (self.root / 'sessions/team.toml').write_text('control_port=4444\n')

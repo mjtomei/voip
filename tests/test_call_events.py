@@ -39,7 +39,8 @@ class CallEventsTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('skipped', text)
 
     def test_configured_incoming_greeting_has_no_competing_hardcoded_opening(self):
-        self.project.profile['prompts']['connection']='{{default}} Greet the caller with hello from the garden.'
+        profile = self.project.root / 'sessions/default.toml'
+        atomic_write(profile, '[prompts]\nconnection="{{default}} Greet the caller with hello from the garden."\n')
         self.event()
         text=self.events.message(self.events.pending(self.thread))
         self.assertIn('hello from the garden',text)
@@ -47,8 +48,19 @@ class CallEventsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Follow the configured connection prompt',text)
         self.assertNotIn('How can I help?',text)
         self.assertIn('Never ask the caller to say or provide a PIN',text)
-        self.project.profile['prompts']['connection']='{{default}}'
+        atomic_write(profile, '[prompts]\nconnection="{{default}}"\n')
         self.assertIn('How can I help?',self.events.message(self.events.pending(self.thread)))
+
+    def test_hangup_uses_prompt_changed_during_same_call(self):
+        self.event()
+        thread = self.project.thread_id()
+        atomic_write(self.project.root / 'sessions/default.toml',
+                     '[prompts]\ndisconnection="{{default}} Record the new availability."\n')
+        self.event('CALL_CLOSED')
+        text = self.events.message(self.events.pending(thread))
+        self.assertIn('This call has ended', text)
+        self.assertIn('Record the new availability.', text)
+        self.assertEqual(self.project.thread_id(), thread)
 
     def test_ended_review_points_to_only_that_calls_native_threads(self):
         first = self.alice_connects('first-call')

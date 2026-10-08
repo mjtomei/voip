@@ -183,6 +183,40 @@ These are separate real rotations; never reset a normal user's code simply to
 exercise the matrix. Local TTS/STT validates prompt text/audio but not Twilio's
 spoken voice or telephone DTMF transport.
 
+## Caller-directed schedule and prompt changes
+
+Use an isolated project with a writable operator and the synthetic reference
+configuration, then provision an arranged test recipient as above. Save the
+original schedule/profile/prompts. Do not alter a normal user's real meetings
+for this test without their request. Local regression tests are in
+`test_voice_config.py`, `test_call_events.py` and `test_call_schedule.py`.
+
+1. On an arranged call, say you now work weekdays 08:00-17:00 and want calls
+   outside those hours. Require the operator to clarify a desired exact time
+   and what happens to other check-ins rather than guess or just record a note.
+   Choose a weekday 18:00 recurrence in the configured timezone, effective now.
+2. Inspect the saved schedule and `schedule next`: the intended recipient/session
+   should have weekday 18:00 dates and any explicitly unwanted check-ins should
+   be disabled. Other recipients must be unchanged. The same phone call and
+   native conversation must remain connected; no PIN re-entry or reset.
+3. Ask for a distinctive meeting opening, such as "Begin our next journal review
+   with a one-sentence priority question." Check the selected prompt/agenda edit
+   and validation. On the next arranged call, verify the requested behavior with
+   handset observation or the documented TTS/STT capture; do not infer it from
+   a saved template or an assistant's promise alone.
+4. Ask to pause future meetings. Verify `enabled=false` and no next occurrence
+   for those entries. If an isolated owned request is queued/retrying, explicitly
+   ask to withdraw it and verify cancellation. The current connected request
+   must not be cancelled as part of pausing its recurrence.
+5. Ask for a change starting on a future date. Require an honest explanation of
+   cron's effective-date limitation and an explicit pending note or an agreed
+   supported immediate change, not a claim that a future note prevents calls.
+
+Restore the saved configuration and validate next occurrences. Cancel/settle
+owned test requests and preserve evidence without retaining credentials. These
+steps require an arranged handset test; automated configuration tests do not
+establish that a caller heard or successfully requested the change.
+
 ## Restart, network and cleanup
 
 With an idle test stack, restart the container and verify the saved conversation,

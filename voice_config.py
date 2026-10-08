@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 import tomllib
 
 from voip import SetupError
@@ -315,8 +316,28 @@ def phone_number(project):
     return value
 
 
+def current_prompts(project):
+    """Reload conversation text without changing live audio, routing or permissions.
+
+    Long-lived frontends must see edits made during their own call. A partially
+    saved/invalid profile must not break hangup delivery or an existing call;
+    fresh Project/config checks still reject it instead of reporting success.
+    """
+    try:
+        loaded = session_profile(project.root, project.config, project.session_id)["prompts"]
+    except (SetupError, UnicodeError):
+        if not getattr(project, '_prompt_reload_failed', False):
+            print('Prompt reload failed for session ' + project.session_id +
+                  '; retaining the last validated prompts. Run config check.', file=sys.stderr)
+        project._prompt_reload_failed = True
+    else:
+        project.profile['prompts'] = loaded
+        project._prompt_reload_failed = False
+    return project.profile['prompts']
+
+
 def prompt(project, kind, default, **values):
-    text = project.profile["prompts"].get(kind) or default
+    text = current_prompts(project).get(kind) or default
     values = {"default": default, "session_id": project.session_id,
               "mailbox_command": project.mailbox_command(), **values}
     # Literal substitutions only; prompts are never shell commands or Python expressions.

@@ -258,6 +258,13 @@ stable when adding sessions. Global request status does not merge these
 queues. Use the intended session when reading or cancelling a request. Schedule
 edits are reloaded by that project's dispatcher without redeployment.
 
+An authenticated caller can ask their operator to revise their own schedule or
+meeting routine using the [caller-directed settings flow](SESSION-SETTINGS.md).
+Prompt templates reload at their next use; initial instructions reload on the
+next native thread resume. Existing calls and conversations need no reset.
+Invalid live prompt edits retain the last validated text and log a warning;
+`config check` still rejects them. Schedule changes do not cancel queued retries.
+
 Codex retains its standard internal database/rollouts under its own home. A
 project may export its own transcript snapshots alongside its meeting notes;
 do not relocate live daemon files or mix other sessions into those exports.

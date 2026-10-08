@@ -126,7 +126,7 @@ class RoutingTest(ServiceFixture):
         self.assertIn('do not describe authentication of the current call',text)
         self.assertNotIn('"authenticated": false',text)
         self.assertIn('Never ask the caller to say or provide a PIN',text)
-        self.project.profile['prompts']['connection']='Welcome to the project.'
+        atomic_write(self.root/'sessions/default.toml', '[prompts]\nconnection="Welcome to the project."\n')
         self.assertIn('current call has already passed telephone keypad PIN verification',e.message(event))
         self.assertIn('Never ask the caller to say or provide a PIN',e.message(event))
 

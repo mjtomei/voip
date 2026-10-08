@@ -205,9 +205,11 @@ incoming_session = "blue"
                     self.heartbeat_errors.append(type(error).__name__)
             self.stop.wait(1)
 
-    def connect(self, project, recipient='alice', request_id=None, identity=None):
+    def connect(self, project, recipient='alice', request_id=None, identity=None, callback_of=None):
         identity = identity or 'incoming-' + uuid.uuid4().hex
         peer = 'sip:voip-' + request_id + '@test.invalid' if request_id else 'sip:voip-in-' + recipient + '@test.invalid'
+        if callback_of:
+            peer = 'sip:voip-in-' + recipient + '-CA' + uuid.uuid4().hex + '-cb-' + callback_of + '@test.invalid'
         self.event(project, identity, peer, 'CALL_ESTABLISHED')
         return identity
 

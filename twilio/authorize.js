@@ -72,7 +72,12 @@ exports.handler = async function (context, event, callback) {
     try { await callRouting.write(context,access.id,event.CallSid,{created_at:Math.floor(Date.now()/1000),
       session_id:access.session,direction:'incoming',status:'dialing_session',authenticated:true,callback_of:callbackOf}); } catch (_) {}
   }
-  const dial = response.dial({ ...(callRouting.enabled(context)?{action:'/call-status?phase=dial',method:'POST'}:{}), timeout: 20, timeLimit: 14400, record: 'do-not-record', callerId: `voip-in-${access.id}` + (callRouting.enabled(context)?`-${event.CallSid}`:'') });
+  // Carry the PIN-verified callback binding directly to the local SIP observer.
+  // Its connection notice must not race the periodic Sync history poll. Only
+  // opaque call IDs cross this boundary; the prepared agenda stays local.
+  const callerId = `voip-in-${access.id}` + (callRouting.enabled(context)?`-${event.CallSid}`:'') +
+    (callbackOf?`-cb-${callbackOf}`:'');
+  const dial = response.dial({ ...(callRouting.enabled(context)?{action:'/call-status?phase=dial',method:'POST'}:{}), timeout: 20, timeLimit: 14400, record: 'do-not-record', callerId });
   // Twilio's outbound SIP leg needs secure=true to negotiate SRTP as well as TLS.
   dial.sip(`sip:${access.username}@${context.SIP_DOMAIN};transport=tls;secure=true`);
   // Ends the caller leg if the SIP endpoint disconnects first.

@@ -12,6 +12,12 @@ from voip import SetupError, lock
 
 MAX_FRAME = 1024 * 1024
 REQUEST_ID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+INCOMING_PEER = re.compile(r'sips?:voip-in-([a-z][a-z0-9_-]{0,31})-(CA[0-9a-fA-F]{32})(?:-cb-(CA[0-9a-fA-F]{32}))?@')
+
+
+def callback_identity(peer_uri):
+    match = INCOMING_PEER.match(peer_uri or '')
+    return match[3] if match else None
 
 
 def outgoing_identity(peer_uri):
@@ -36,14 +42,15 @@ class CallEvents:
             "calls": {}, "events": [], "observer_online": False, "observed_at": 0}
 
     @staticmethod
-    def transition(state, key, connected, recovered=False, request_id=None, recipient_id=None, phone_call_sid=None):
+    def transition(state, key, connected, recovered=False, request_id=None, recipient_id=None, phone_call_sid=None, callback_of=None):
         calls = state["calls"]
         old = calls.get(key)
         if connected:
             if old is not None:  # Closed identities cannot be reopened by late events.
                 return
             calls[key] = {"connected": True, "seen_at": time.time(),
-                          "outgoing_request_id": request_id, "recipient_id": recipient_id, "phone_call_sid":phone_call_sid}
+                          "outgoing_request_id": request_id, "recipient_id": recipient_id, "phone_call_sid":phone_call_sid,
+                          "callback_of": callback_of}
             kind = "connected"
         else:
             calls[key] = {**(old or {}), "connected": False, "seen_at": time.time()}
@@ -52,13 +59,16 @@ class CallEvents:
             kind = "ended"
             request_id = request_id or old.get("outgoing_request_id")
             recipient_id = recipient_id or old.get("recipient_id")
+            phone_call_sid = phone_call_sid or old.get('phone_call_sid')
+            callback_of = callback_of or old.get('callback_of')
         state["events"].append({"id": key + ":" + kind, "call": key, "kind": kind,
                                 "occurred_at": time.time(), "recovered": recovered,
-                                "outgoing_request_id": request_id, "recipient_id": recipient_id, "deliveries": {}})
+                                "outgoing_request_id": request_id, "recipient_id": recipient_id, "deliveries": {},
+                                "phone_call_sid": phone_call_sid, "callback_of": callback_of})
 
     def phone_sid(self, peer_uri):
-        match=re.match(r"sips?:voip-in-[a-z][a-z0-9_-]{0,31}-(CA[0-9a-fA-F]{32})@",peer_uri or "")
-        if match:return match[1]
+        match=INCOMING_PEER.match(peer_uri or "")
+        if match:return match[2]
         identity=outgoing_identity(peer_uri)
         if identity:
             path=self.project.shared_state/'outgoing-calls.json'
@@ -71,7 +81,7 @@ class CallEvents:
         return None
 
     def recipient(self, peer_uri):
-        match=re.match(r"sips?:voip-in-([a-z][a-z0-9_-]{0,31})-CA[0-9a-fA-F]{32}@",peer_uri or "")
+        match=INCOMING_PEER.match(peer_uri or "")
         if match:return match[1]
         match = re.match(r"sips?:voip-in-([a-z][a-z0-9_-]{0,31})@", peer_uri or "")
         if match:
@@ -103,11 +113,12 @@ class CallEvents:
             state = self.load()
             self.transition(state, key, kind == "CALL_ESTABLISHED",
                             request_id=outgoing_identity(value.get("peeruri")),
-                            recipient_id=self.recipient(value.get("peeruri")), phone_call_sid=self.phone_sid(value.get("peeruri")))
+                            recipient_id=self.recipient(value.get("peeruri")), phone_call_sid=self.phone_sid(value.get("peeruri")),
+                            callback_of=callback_identity(value.get('peeruri')))
             state.update(observer_online=True, observed_at=time.time())
             save_json(self.path, state)
 
-    def snapshot(self, calls, request_ids=None, recipients=None, phone_sids=None):
+    def snapshot(self, calls, request_ids=None, recipients=None, phone_sids=None, callbacks=None):
         with lock(self.mutex):
             state = self.load()
             for key, old in list(state["calls"].items()):
@@ -116,7 +127,8 @@ class CallEvents:
             for key, established in calls.items():
                 if established:
                     self.transition(state, key, True, recovered=True,
-                                    request_id=(request_ids or {}).get(key), recipient_id=(recipients or {}).get(key), phone_call_sid=(phone_sids or {}).get(key))
+                                    request_id=(request_ids or {}).get(key), recipient_id=(recipients or {}).get(key), phone_call_sid=(phone_sids or {}).get(key),
+                                    callback_of=(callbacks or {}).get(key))
             state.update(observer_online=True, observed_at=time.time())
             save_json(self.path, state)
 
@@ -209,7 +221,14 @@ class CallEvents:
                 if previous.get("state") == "submitted":
                     text += " Voice reconnected to the same call. The opening was already requested; do not repeat it unless asked."
                 else:
+                    if prepared.get('callback'):
+                        stamp = datetime.fromtimestamp(prepared['prepared_at'], timezone.utc).isoformat()
+                        text += (' This is the first connected callback to the earlier outgoing call. '
+                                 'Carry forward its pending agenda. The brief is a historical snapshot prepared at '
+                                 + stamp + '; do not claim it is a new review. Frame the opening as the earlier findings '
+                                 'and confirm any time-sensitive changes during the discussion.')
                     text += ((" This caller has been transferred to your session. Begin speaking directly to the caller NOW " if prepared.get("transfer") else
+                             " Begin speaking directly to the caller NOW " if prepared.get('callback') else
                              " This is the outgoing call you already prepared. Begin speaking directly to the caller NOW ") +
                              "with the prepared opening below. Explain the actual message and pending question. "
                              "Do not announce the connection, mailbox count, or that you will look something up. "
@@ -339,21 +358,46 @@ class CallEvents:
                 'context':'Caller transferred from '+transfer['source_session']+' to session '+self.project.session_id+
                           ' (working directory '+str(workspace)+'). Caller-provided context: '+transfer['note']}}
         path = self.project.shared_state / "outgoing-calls.json"
-        if not request_id or not path.exists():
+        callback_of = event.get('callback_of')
+        if not (request_id or callback_of) or not path.exists():
             return None
         records = json.loads(path.read_text())
-        record = next((r for r in records.values() if r["id"] == request_id), None)
-        if (not record or record.get("session_id", "default") != self.project.session_id or
-                not 0 <= event["occurred_at"] - record["created"] <= 720):
+        if callback_of and not request_id:
+            record = next((r for r in records.values() if r.get('phone_call_sid') == callback_of), None)
+            if (not event.get('phone_call_sid') or not record or
+                    not event.get('recipient_id') or record.get('recipient_id') != event['recipient_id']):
+                return None
+            # Only the first established, attributed callback gets this opening.
+            # Persisted connection events survive monitor/frontend restarts and
+            # serialize concurrent arrivals without depending on cloud poll order.
+            first = next((e for e in self.load()['events'] if e['kind'] == 'connected'
+                          and e.get('callback_of') == callback_of
+                          and e.get('recipient_id') == event['recipient_id']), None)
+            if not first or first['id'] != event['id']:
+                return None
+        else:
+            callback_of = None
+            record = next((r for r in records.values() if r["id"] == request_id), None)
+        if not record or record.get("session_id", "default") != self.project.session_id:
+            return None
+        age = event['occurred_at'] - record.get('placed_at', record['created'])
+        if age < 0 or (age >= 10800 if callback_of else age > 720):
             return None
         prepared = record.get("preparation")
         if not prepared or prepared.get("state") != "ready":
+            return None
+        if callback_of and prepared.get('recipient_id') != event['recipient_id']:
             return None
         from call_preparation import Preparations
         try:
             Preparations(self.project).validate(prepared, record["reason"])
         except SetupError:
             return None
+        if callback_of:
+            stamp = prepared.get('prepared_at')
+            if not isinstance(stamp, (int, float)) or not 0 < stamp <= event['occurred_at']:
+                return None
+            return {**prepared, 'callback': True}
         return prepared
 
 
@@ -438,7 +482,8 @@ async def observe(project, events, keypad):
                 registration.snapshot(info, calls)
                 rows = re.findall(r"\[line \d+, id ([^\]\r\n]+)\]\s+\S+\s+\w+\s+(\S+)", data)
                 events.snapshot(calls, parse_request_ids(data), parse_recipients(data, events),
-                                {call_key(identity):events.phone_sid(peer) for identity,peer in rows})
+                                {call_key(identity):events.phone_sid(peer) for identity,peer in rows},
+                                {call_key(identity):callback_identity(peer) for identity,peer in rows})
                 renewal = registration.renewal()
                 if renewal:
                     await command(renewal)

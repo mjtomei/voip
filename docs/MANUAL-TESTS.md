@@ -143,9 +143,13 @@ bypass an unresolved attempt.
     delayed hangup review, the notice's old recipient must be used even if another
     caller has connected. See `test_recipient_mailboxes.py` for deterministic races.
 12. **Callback preference and consumption.** Arrange an outgoing call from a
-    session other than the recipient's normal incoming route, then end it.
+    session other than the recipient's normal incoming route with a prepared
+    harmless reference phrase, then end it before PIN verification.
     Call the shared number without an extension and enter the usual PIN. Require
-    the original calling session's automatic greeting. End that callback and
+    the original calling session to begin with that prepared topic automatically,
+    without asking what to discuss or performing another preparation lookup.
+    Acknowledge the phrase; the agenda is not addressed merely by connecting.
+    End that callback and
     dial again without an extension; require the normal incoming route and its
     greeting. Record both actual session/thread identities and the provider
     history's callback-consumption record. Separately verify that an explicit

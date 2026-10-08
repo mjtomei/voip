@@ -40,6 +40,38 @@ needed in addition to prompt and notice tests.
 
 ## Call history and missed-call context
 
+The first authenticated callback that reaches the original session also carries
+that outgoing attempt's prepared agenda, provided it is still pending. The
+protected PIN handler sends the original and current call IDs in the SIP-only
+caller identity; agenda text and PINs remain local. This avoids waiting for the
+periodic cloud-history poll before greeting the caller. An explicit extension
+does not carry a callback agenda. The usual three-hour callback window applies,
+including a new window for each retry.
+
+The connection notice gives the operator the existing opening and context before
+it speaks. It labels them as an earlier snapshot with its preparation time,
+rather than claiming a fresh review. The brief is withheld if the mailbox
+message changed or was addressed, the configured recipient/number changed, the
+saved conversation was reset, or the attempt no longer matches the session.
+The ordinary greeting and pending-mailbox flow still work in these cases.
+Persisted SIP connection events limit the opening to the first matching callback;
+concurrent or later callbacks cannot reuse it. Reconnecting audio on that same
+call restores context without asking for a repeated opening. No callback marks
+the agenda addressed merely by connecting or reading it aloud.
+
+Reproduce the deterministic cross-language regression with
+`node --test twilio/call-routing.test.js` and
+`python3 -m unittest discover -s tests -p test_callback_agenda.py -v`.
+The Node test runs the actual PIN handler and feeds its SIP caller identity into
+the Python connection-notice code using synthetic recipients. Native voice
+acceptance adds `scripts/test-features.py --run --case callback`: real preparation,
+simulated failed outgoing attempt and authenticated callback, STT verification
+of the prepared spoken topic without another backend lookup, then a TTS request
+to repeat the earlier reference with STT verifying that same reference in the
+answer. The capture waits for output silence before connecting, so residual
+preparation speech cannot satisfy the callback assertion. See [TESTING](../TESTING.md) for the
+isolated container setup. This does not replace real handset acceptance.
+
 Protected Functions and the local dispatcher share a private Twilio Sync journal
 per recipient. It contains call/session IDs, direction, attempt times, provider
 status and PIN/connection flags, never PINs, agendas, transcripts or phone numbers.

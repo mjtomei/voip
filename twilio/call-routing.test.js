@@ -45,6 +45,35 @@ test('each retry refreshes the window; a status update does not; exactly three h
   await placed(sid(2));assert.match(await invoke(incoming,event()),new RegExp('recent_call='+sid(2)));
  }finally{s.restore();}
 });
+test('authenticated callback SIP identity carries its exact agenda across the Python connection boundary',async()=>{
+ const s=store();try{
+  await placed(sid(1),'alice','default');
+  const start=params(await invoke(incoming,event()));
+  assert.doesNotMatch(await invoke(authorize,{...event(),...start,Digits:'000000'}),/<Dial|callerId=/);
+  const xml=await invoke(authorize,{...event(),...start,Digits:'123456'});
+  const peer='sip:'+xml.match(/callerId="([^"]+)"/)[1]+'@test.invalid';
+  assert.equal(peer,`sip:voip-in-alice-${sid(9)}-cb-${sid(1)}@test.invalid`);
+  const {spawnSync}=require('node:child_process'),path=require('node:path');
+  const result=spawnSync('python3',['-c',`
+import sys
+sys.path.insert(0, 'tests')
+from test_callback_agenda import CallbackAgendaTest
+t=CallbackAgendaTest(); t.setUp()
+try:
+    t.events.event({'event':True,'class':'call','type':'CALL_ESTABLISHED',
+        'id':'provider-callback','peeruri':sys.argv[1],
+        'accountaor':f"sip:{t.project.sip['username']}@{t.project.sip['domain']}"})
+    text=t.events.message(t.events.pending(t.project.thread_id()))
+    assert 'silver compass' in text and 'first connected callback' in text
+    assert 'new incoming call' not in text
+finally:
+    t.doCleanups()
+`,peer],{cwd:path.resolve(__dirname,'..'),encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);
+  const explicit=params(await invoke(authorize,{...event(),...start,Digits:'10'}));
+  assert.doesNotMatch(await invoke(authorize,{...event(),...explicit,Digits:'123456'}),/-cb-/);
+ }finally{s.restore();}
+});
 test('successful callback consumes latest route without reviving older calls; a retry starts a new window',async()=>{
  const s=store();try{
   await placed(sid(1),'alice','default',now()-100);await placed(sid(2),'alice','project',now()-20);

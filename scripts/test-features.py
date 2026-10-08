@@ -27,7 +27,7 @@ from voice_acceptance import Capture, ask, synthesize, play, stt_paths
 from voip import Project, SetupError, atomic_write
 from voice_e2e_fixture import Fixture, until
 
-CASES = ['smoke', 'profiles', 'mailbox', 'prepared', 'hangup', 'requests', 'backend_requests', 'schedules',
+CASES = ['smoke', 'profiles', 'mailbox', 'prepared', 'callback', 'hangup', 'requests', 'backend_requests', 'schedules',
          'missed', 'redial', 'concurrency', 'different_recipients', 'frontend_reset', 'session_reset', 'outgoing_reset', 'directory_workspace']
 
 
@@ -181,6 +181,37 @@ class Suite:
 
     def hangup(self):
         self.prepared(review=True)
+
+    def callback(self):
+        p = self.f.projects['default']
+        self.f.settle(p)
+        key, message, phrase = self.enqueue(p)
+        self.dispatch(key)
+        saved = self.f.calls(p).load()[key]
+        original = saved['phone_call_sid']
+        require(saved['preparation']['source'] == 'operator-turn', 'Missing native preparation')
+        # The first phone attempt ends before SIP authentication. Its callback
+        # has a new phone identity and no outgoing request UUID, just like Twilio.
+        self.f.phone.finish(original)
+        self.f.dispatcher.process(key)
+        self.f.settle(p)
+        turns = self.f.turn_ids(p)
+        with Capture(p, self.directory('callback-opening')) as capture:
+            # Drain any unsolicited/preload speech before marking the callback.
+            # Otherwise a tail containing the reference could falsely pass STT.
+            def quiet():
+                seconds = capture.poll()
+                return seconds >= 3 and seconds - (capture.last_signal or 0) >= 3
+            until(quiet, 60, 'three seconds of local output silence before callback')
+            identity = self.f.connect(p, callback_of=original)
+            capture.after('authenticated_callback_established')
+            capture.verify([phrase.replace(' ', ' ?')], timeout=self.timeout,
+                           forbidden=['mailbox', 'what do you want to review'])
+        require(self.f.turn_ids(p) == turns, 'Callback opening required another backend lookup')
+        require(Mailbox(p).read(message)['status'] == 'unaddressed', 'Callback opening addressed agenda')
+        self.say(p, 'Please repeat the review reference from the earlier call.',
+                 [phrase.replace(' ', ' ?')])
+        self.end(p, identity)
 
     def requests(self):
         p = self.f.projects['default']

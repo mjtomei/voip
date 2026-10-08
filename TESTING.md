@@ -86,6 +86,7 @@ export VOICE_TEST_WORKSPACE="$(mktemp -d "$HOME/voice-native-test.XXXXXX")"
 export VOICE_TEST_CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 export VOICE_TEST_SOCKET_DIR="$VOICE_TEST_CODEX_HOME/app-server-control"
 codex app-server daemon start
+export VOICE_TEST_DAEMON_DIR="$(dirname "$(readlink -f "$VOICE_TEST_SOCKET_DIR/app-server-control.sock")")"
 docker run -d --name voice-native-test --user "$(id -u):$(id -g)" \
   -e HOME=/tmp/voice-home \
   -e VOIP_ROOT="$VOICE_TEST_WORKSPACE/base" \
@@ -93,6 +94,7 @@ docker run -d --name voice-native-test --user "$(id -u):$(id -g)" \
   -e CODEX_HOME="$VOICE_TEST_CODEX_HOME" \
   -v "$VOICE_TEST_WORKSPACE:$VOICE_TEST_WORKSPACE" \
   -v "$VOICE_TEST_SOCKET_DIR:/codex-control:ro" \
+  -v "$VOICE_TEST_DAEMON_DIR:$VOICE_TEST_DAEMON_DIR:ro" \
   -v "$VOICE_TEST_CODEX_HOME:$VOICE_TEST_CODEX_HOME:ro" \
   -w /opt/voip voice-operator:test sleep infinity
 docker exec voice-native-test voip init --number +12025550100 \
@@ -126,6 +128,10 @@ Use an image built from the same revision. No Twilio credentials or real recipie
 configuration enter this test container. Select individual cases with repeated
 `--case NAME` flags and a fresh output directory.
 
+The resolved daemon directory mount is required when the control socket is a
+symlink into a private `/tmp/codex-daemon-UID/` directory. Mounting only its symlink
+directory otherwise leaves the relay unable to reach the running host daemon.
+
 The explicit test permission flag is necessary for host `docker exec` commands.
 Without it fixtures default to `workspace-write`, whose sandbox denies Docker
 socket access; a spoken promise to review a mailbox is not a successful review.
@@ -147,6 +153,7 @@ omit the home mount/metadata setting and do not select session/full reset cases.
 | `profiles` | Two concurrent native profiles speak distinct startup identities; no cross-profile phrase |
 | `mailbox` | Configured incoming greeting; message read/action/outcome, pending decision stays open |
 | `prepared` | Operator loads agenda before fake dial; prepared phrase spoken after identified connection |
+| `callback` | A failed outgoing attempt's first authenticated callback receives the prepared agenda without another backend lookup; STT verifies the opening, TTS asks for the earlier reference, STT verifies the same reference in the answer |
 | `hangup` | Delivered/acknowledged message followed by ended notice; actual CLI review and outcome/disconnection marker required |
 | `requests` | Ordinary context waits during input activity; priority context arrives; same recipient reuses call, other recipient waits |
 | `backend_requests` | Real waiting tool remains active; priority context steers it; ordinary context waits; spoken status and completed tool result both checked |

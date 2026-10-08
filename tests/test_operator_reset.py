@@ -118,11 +118,16 @@ class ResetTest(unittest.TestCase):
         self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
 
     def test_fresh_reset_creates_once_then_commits_new_identity(self):
+        from service_fixture import single_recipient
+        single_recipient(self.root)
         result = resets.reset_operator(self.project, "fresh")
         self.assertEqual(result["new_thread_id"], self.new)
         self.assertEqual(self.project.thread_id(), self.new)
         self.assertTrue(self.archived(self.old))
         self.assertEqual(sum(m == "thread/start" for m, _ in self.calls), 1)
+        naming = next(p for m, p in self.calls if m == 'thread/name/set')
+        self.assertEqual(naming, {'threadId': self.new,
+                                 'name': 'Phone operator: Alice — ' + self.root.name})
         self.assertFalse((self.project.state / "operator-reset-create-pending.json").exists())
         resume = next(p for m, p in self.calls if m == "thread/resume")
         self.assertEqual(resume["threadId"], self.new)

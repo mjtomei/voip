@@ -110,6 +110,17 @@ The default profile keeps the original paths and device names. Other state lives
 under `state/sessions/NAME/`; requests, phone attempts, and scheduling ledgers are
 shared under `state/`.
 
+New, adopted, and fresh-reset Codex conversations are named
+`Phone operator: Alice — project`. The user is the session's allowed
+`default_recipient`, or all allowed recipient names if there is no default.
+An operator created before recipients are configured says `Unassigned`.
+The directory is relative to the provider's configured directory-extension root
+(the root itself is `home`), or its basename when no root is configured.
+Named profiles sharing a directory also include their session ID where it differs
+from the directory name. These labels contain no phone numbers or access codes;
+they describe the configured association, not whoever most recently called.
+Renaming an existing conversation through Codex changes only its display name.
+
 Nondefault control ports are derived from the name unless specified. Validation
 rejects collisions. The default profile uses `[sip].control_port` in the server
 file (4444 if omitted). User units use instances such as

@@ -2,13 +2,38 @@ import json
 from unittest.mock import patch
 from service_fixture import ServiceFixture
 from service_config import check_config, access_bytes
-from voice_config import prompt, recipients, resolve_recipient
+from voice_config import prompt, recipients, resolve_recipient, operator_thread_name
 from voip import Project, SetupError, render_systemd
 from operator_mailbox import Mailbox
 from outgoing_calls import Calls
 from call_events import CallEvents
 
 class ConfigTests(ServiceFixture):
+    def test_thread_name_uses_allowed_default_and_never_reads_pin(self):
+        (self.root / 'recipients.toml').write_text(self.contacts.replace(
+            'pin = "123456"', 'pin_file = "not-created-yet"'))
+        self.assertEqual(operator_thread_name(self.team),
+                         'Phone operator: Alice — ' + self.root.name + ' (team)')
+        # A shared profile without a preferred recipient lists both identities.
+        (self.root / 'recipients.toml').write_text(self.contacts.replace(
+            'default_recipient = "alice"\n', ''))
+        self.assertIn('Alice, Bob — ', operator_thread_name(self.team))
+        # A global default that cannot access this profile must not label it.
+        (self.root / 'recipients.toml').write_text(self.contacts.replace(
+            'sessions = ["default", "team"]', 'sessions = ["default"]'))
+        self.assertIn('Bob — ', operator_thread_name(self.team))
+
+    def test_thread_name_uses_provider_directory_root_not_container_home(self):
+        self.project.config['directory_extensions'] = {'root': str(self.root)}
+        self.assertEqual(operator_thread_name(self.project), 'Phone operator: Alice — home')
+        self.project.workspace = self.root / 'work' / 'project'
+        self.assertEqual(operator_thread_name(self.project), 'Phone operator: Alice — work/project')
+
+    def test_thread_name_before_contact_setup(self):
+        (self.root / 'recipients.toml').unlink()
+        self.assertEqual(operator_thread_name(self.project),
+                         'Phone operator: Unassigned — ' + self.root.name)
+
     def test_sessions_share_person_project_mailbox_but_keep_distinct_audio_processes_and_paths(self):
         a, b = self.project, self.team
         self.assertEqual(a.state, self.root / 'state')

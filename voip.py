@@ -370,6 +370,7 @@ class Rpc:
 
 
 def operator_init(project, adopt=None):
+    from voice_config import operator_thread_name
     with lock(project.state / "ensure.lock"):
         target = project.state / "operator-thread-id"
         if target.exists():
@@ -379,6 +380,7 @@ def operator_init(project, adopt=None):
             raise SetupError("Prior thread creation has an unknown outcome; inspect Codex threads and use operator adopt UUID")
         if lock_busy(project.state / "operator-process.lock"):
             raise SetupError("Operator is already running")
+        thread_name = operator_thread_name(project)
         with Rpc(project) as rpc:
             if adopt:
                 thread = rpc.request("thread/read", {"threadId": str(uuid.UUID(adopt)),
@@ -395,8 +397,8 @@ def operator_init(project, adopt=None):
             # Persist before secondary operations so a retry cannot create a second thread.
             atomic_write(target, str(uuid.UUID(thread["id"])) + "\n")
             pending.unlink(missing_ok=True)
+            rpc.request("thread/name/set", {"threadId": thread["id"], "name": thread_name})
             if not adopt:
-                rpc.request("thread/name/set", {"threadId": thread["id"], "name": "Phone operator: " + project.session_id})
                 # 0.154.0 creates the rollout lazily. Requesting a history page
                 # persists even an empty thread before this connection closes.
                 rpc.request("thread/resume", {"threadId": thread["id"],

@@ -94,6 +94,8 @@ class ProjectTest(unittest.TestCase):
         (self.project.state / "last-start").unlink(missing_ok=True)
 
     def test_init_saves_once_and_never_replaces_identity(self):
+        from service_fixture import single_recipient
+        single_recipient(self.root)
         self.invoke(voip.operator_init)
         self.assertEqual(self.project.thread_id(), self.thread)
         with self.assertRaisesRegex(voip.SetupError, "already saved"):
@@ -102,6 +104,8 @@ class ProjectTest(unittest.TestCase):
         self.assertEqual([x["method"] for x in requests],
                          ["initialize", "initialized", "thread/start", "thread/name/set", "thread/resume"])
         self.assertEqual(requests[2]["params"]["sandbox"], "read-only")
+        self.assertEqual(requests[3]['params']['name'],
+                         'Phone operator: Alice — ' + self.root.name)
         self.assertEqual((self.project.state / "operator-thread-id").stat().st_mode & 0o777, 0o600)
 
     def test_secondary_rpc_failure_cannot_create_another_thread(self):

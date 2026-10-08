@@ -8,6 +8,7 @@ import time
 import uuid
 
 from operator_mailbox import save_json
+from voice_config import operator_thread_name
 from voip import (ROOT, Rpc, SetupError, atomic_write, lock, lock_busy, operator_ensure,
                   operator_status, process_identity)
 
@@ -220,7 +221,7 @@ def reset_operator(project, scope):
                             creation_pending.unlink(missing_ok=True)
                             if new_id == old or Path(new["cwd"]).resolve() != project.workspace:
                                 raise SetupError("Codex created an unexpected operator thread")
-                            rpc.request("thread/name/set", {"threadId": new_id, "name": "Phone operator: " + project.session_id})
+                            rpc.request("thread/name/set", {"threadId": new_id, "name": operator_thread_name(project)})
                             resume(project, rpc, new_id, new=True)
                             atomic_write(project.state / "operator-thread-id", new_id + "\n")
                 record.update(needs_recovery=False, status="reconnecting")

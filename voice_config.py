@@ -307,6 +307,35 @@ def session_recipients(project):
     return allowed, default
 
 
+def operator_thread_name(project):
+    """A stable person/workspace label; never derive ownership from the last caller."""
+    from voip import Project
+    from directory_service import is_generated
+    provider = project if project.provider_root == project.root else Project(project.provider_root)
+    # Audio-only/bootstrap installations can create an operator before contacts.
+    configured = any(configured_path(p, 'recipients_file', 'recipients.toml').exists()
+                     or (p.shared_state / 'twilio-call-settings.json').exists()
+                     for p in (provider, project))
+    people, default = session_recipients(project) if configured else ({}, None)
+    identities = [default] if default else sorted(people)
+    user = ', '.join(identity.replace('_', ' ').replace('-', ' ').title()
+                     for identity in identities) or 'Unassigned'
+    # Use the provider's configured directory root, not the container user's HOME.
+    root = provider.config.get('directory_extensions', {}).get('root')
+    workspace = project.workspace
+    directory = workspace.name or str(workspace)
+    if root:
+        try:
+            relative = workspace.relative_to(Path(root).expanduser().resolve())
+            directory = 'home' if relative == Path('.') else str(relative)
+        except ValueError:
+            directory = str(workspace)
+    if (project.session_id not in {'default', workspace.name}
+            and not is_generated(project)):
+        directory += ' (' + project.session_id + ')'
+    return 'Phone operator: ' + user + ' — ' + directory
+
+
 def phone_number(project):
     value = project.config.get("twilio", {}).get("phone_number")
     if value is None:

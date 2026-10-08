@@ -101,12 +101,22 @@ Correct the edit before claiming it is installed. This reload changes prompt
 text only, not live permissions, audio, extensions, recipients or provider
 settings. Those remain separately administered configuration.
 
+## One-off skips and early meetings
+
+Use `schedule agenda`, `schedule skip` and `schedule start-early` for one specific
+occurrence, using the key from `schedule next`. An early meeting uses the already
+connected authenticated call and the occurrence's mailbox agenda, suppressing
+the original dial without changing the recurring schedule. See the
+[occurrence commands](SCHEDULE-OCCURRENCES.md) for scope, crash recovery and
+already-queued requests. Starting early does not automatically complete an agenda.
+
 ## Limits
 
-The scheduler supports recurring numeric cron, not effective-from/until dates,
-rotating shift calendars or dated exceptions. Availability notes alone do not
-block calls. Do not promise that "starting next month" or "skip just tomorrow"
-is automated by adding a note. Clarify whether the person wants an immediate
+The scheduler supports recurring numeric cron and specific occurrence skips,
+not effective-from/until dates or rotating shift calendars. Availability notes
+alone do not block calls. Use the actual occurrence command for "skip tomorrow";
+do not claim that "starting next month" is automated by adding a note.
+Clarify whether the person wants an immediate
 recurrence change/pause, or a recorded future change still needing application.
 Prompt changes cannot authorize unrelated work or bypass project permissions.
 

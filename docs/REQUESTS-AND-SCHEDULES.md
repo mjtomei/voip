@@ -231,3 +231,10 @@ python3 voip.py schedule tick --dry-run
 `tick --dry-run` performs no writes or calls. Plain `tick` enqueues due occurrences;
 the enabled request daemon can then dial them. `schedule-state.json` and
 `requests.json` persist across reboot; do not delete them to retry work.
+
+`schedule next` includes an `occurrence_key`. Use it with `schedule agenda`
+to read the meeting's prompt data, `schedule skip` to suppress only that occurrence,
+or `schedule start-early` to use the agenda on a verified current call. The
+[occurrence guide](SCHEDULE-OCCURRENCES.md) explains the commands and their
+recipient/session checks. Intentional skips and early meetings do not count as
+offline misses; early agendas remain unaddressed until the discussion is complete.

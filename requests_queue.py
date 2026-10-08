@@ -22,6 +22,11 @@ class Requests:
         self.path = project.shared_state / "requests.json"
         self.mutex = project.shared_state / "requests.lock"
 
+    def process_lock(self, key):
+        # Serialize occurrence edits with the worker that may prepare/dial it.
+        return lock(self.project.shared_state / 'request-process-locks' /
+                    (hashlib.sha256(key.encode()).hexdigest() + '.lock'))
+
     def load(self):
         return json.loads(self.path.read_text()) if self.path.exists() else {}
 
@@ -148,6 +153,10 @@ class Dispatcher:
         self.runtime, self.clock = runtime, clock
 
     def process(self, key):
+        with self.queue.process_lock(key):
+            return self._process(key)
+
+    def _process(self, key):
         record = self.queue.read(key)
         if record['state'] == 'cancelled' and record['attempts'] and not record.get('cancel_settled'):
             try:

@@ -217,6 +217,39 @@ owned test requests and preserve evidence without retaining credentials. These
 steps require an arranged handset test; automated configuration tests do not
 establish that a caller heard or successfully requested the change.
 
+## A single skipped or early meeting
+
+Use an isolated project/session and an explicitly arranged test recipient.
+Create a synthetic agenda with a unique topic and a recurrence due at a known
+future local minute. Copy its `occurrence_key` from `schedule next`. The commands
+are documented in [schedule occurrences](SCHEDULE-OCCURRENCES.md); deterministic
+tests run in `test_schedule_occurrences.py` without real accounts or calls.
+
+1. Inspect `schedule agenda KEY --recipient NAME`: verify the actual agenda text
+   and that reading it did not enqueue a call or mark any message addressed.
+2. On an arranged incoming call, ask to hold that future meeting now instead.
+   Verify the operator uses `schedule start-early` with this call ID, discusses
+   the unique topic, and keeps the same call connected without another PIN.
+   Capture the spoken exchange with the established TTS/STT harness or record
+   handset confirmation; a saved tool result alone is not speech acceptance.
+3. After the discussion, verify the intended mailbox agenda's resolution cites
+   the actual outcome. In a separate test, interrupt before the decision and
+   verify it stays unaddressed. Neither start-early nor hangup alone completes it.
+4. Remain connected through the original due minute. Require no additional ring
+   or duplicate topic submission. Verify the ledger records `started_early`, no
+   scheduled call request exists for that early occurrence, and the next day's
+   recurrence remains in `schedule next`. The recurring TOML must be unchanged.
+5. For another future occurrence, ask to skip just that meeting. Require
+   `caller_skipped`, no call at that time, and no added offline-missed count.
+   Restart the idle test stack before due time to verify the skip survives.
+6. Attempt start-early with a wrong/stale call ID or another recipient and require
+   rejection. For an already-active scheduled phone request, require skip to
+   refuse rather than hang up. Do not create new keys to bypass that refusal.
+
+Disable temporary recurrences after testing, cancel/settle only owned pending
+test requests, and preserve private evidence. Never delete production ledgers
+to undo a test; retain the original topic/disposition record.
+
 ## Restart, network and cleanup
 
 With an idle test stack, restart the container and verify the saved conversation,

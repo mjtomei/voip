@@ -74,6 +74,29 @@ Caller-directed meeting settings:
   `{{mailbox_command}} request status` and cancel only matching pending work the
   caller wants withdrawn. Never cancel the request owning the current connected
   call just to change its future schedule; cancellation can end that call.
+- For one specific meeting, copy its occurrence_key from `{{mailbox_command}}
+  schedule next --count 6`. Inspect its topic with `{{mailbox_command}} schedule
+  agenda OCCURRENCE_KEY --recipient NAME`. The reply contains the saved/current
+  agenda and, if already generated, a historical preparation brief. Reading does
+  not dial, generate a new brief or mark the meeting complete.
+- To skip only that meeting, run `{{mailbox_command}} schedule skip
+  OCCURRENCE_KEY --recipient NAME --note 'Caller requested skipping this meeting'`.
+  This preserves the recurring schedule. Check the successful result and next
+  occurrences; do not edit private schedule-state.json by hand.
+- If the connected caller wants to hold a future meeting now, use
+  `{{mailbox_command}} schedule start-early OCCURRENCE_KEY --recipient NAME
+  --call-id CALL_ID --note 'Caller requested this meeting now'`. This loads the
+  agenda into the matching mailbox and suppresses its original dial, keeping
+  this authenticated call connected. Discuss the returned agenda now, consulting
+  the project context as needed. Do not call prepare/start, reset or place another
+  call. Plan from now to the next remaining meeting. Mark the agenda addressed
+  only after its requested discussion is complete; starting early is not completion.
+  Record the original meeting time and actual call ID in the meeting note.
+- Occurrence changes refuse a busy dispatcher or an already dispatched/active
+  call. Inspect status on failure; do not claim cancellation or bypass it with
+  a new request key. A queued unsubmitted occurrence or settled retry may be
+  skipped, but skipping never ends a connected phone call. An already-due agenda
+  can be read and discussed directly; start-early is for future occurrences.
 - Prompt edits are read at the next use of that template; initial instructions
   are used on the next native conversation resume. Apply the caller's agreed
   preference conversationally now, but do not restart/reset or hang up to install

@@ -177,14 +177,17 @@ class Scheduler:
         if not definitions:
             return []
         results, seen = [], set()
+        occurrences = self.load()['occurrences']
         first = int(self.clock() // 60) * 60 + 60
         for stamp in range(first, first + 370 * 86400, 60):
             for schedule in definitions:
                 local = datetime.fromtimestamp(stamp, schedule['_zone'])
-                key = (schedule['id'], local.strftime('%Y%m%dT%H%M'))
+                key = 'schedule:' + schedule['id'] + ':' + local.strftime('%Y%m%dT%H%M')
+                if occurrences.get(key, {}).get('state') in {'skipped', 'early_pending'}:
+                    continue
                 if schedule['_cron'].matches(local) and key not in seen:
                     seen.add(key)
-                    results.append({'schedule': schedule['id'], 'session': schedule['session'],
+                    results.append({'occurrence_key': key, 'schedule': schedule['id'], 'session': schedule['session'],
                                     'recipient': schedule['recipient'], 'local_time': local.isoformat(),
                                     'utc_time': datetime.fromtimestamp(stamp, timezone.utc).isoformat()})
                     if len(results) >= count:
@@ -229,7 +232,10 @@ class Scheduler:
             # matching minute, independently of the offline misfire policy.
             if not dry_run:
                 for key, old in state['occurrences'].items():
-                    if old['state'] == 'pending':
+                    if old['state'] == 'early_pending':
+                        from schedule_occurrences import materialize_early
+                        materialize_early(self.project, state, key)
+                    elif old['state'] == 'pending':
                         materialize(key, old)
             for schedule in definitions:
                 first = now if prior is None or schedule['misfire'] == 'skip' else max(prior + 60, now - schedule['max_lateness_seconds'])
@@ -240,7 +246,7 @@ class Scheduler:
                     # Repeated fall-back wall-clock minutes produce one occurrence.
                     key = 'schedule:' + schedule['id'] + ':' + local.strftime('%Y%m%dT%H%M')
                     old = state['occurrences'].get(key)
-                    if old and old['state'] in {'enqueued', 'expired', 'skipped'}:
+                    if old and old['state'] in {'enqueued', 'expired', 'skipped', 'early_pending'}:
                         continue
                     if dry_run:
                         results.append({'key': key, 'session': schedule['session'], 'recipient': schedule['recipient']})

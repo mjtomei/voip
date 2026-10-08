@@ -128,3 +128,34 @@ SIP legs, keypad recovery and hangup/cancellation. An additional authorized numb
 and deployed second profile are needed for multi-number testing. Fresh keypad
 reset must be arranged because it replaces the real operator conversation.
 No telephony test was started automatically.
+
+## October 8, 2026: prepared agenda on the first callback
+
+The `callback` case now prepares an agenda on a real isolated Codex conversation,
+ends a simulated outgoing attempt before SIP connection, and connects an
+authenticated callback carrying that attempt's identity. Final native result:
+**passed**, including independent STT of the prepared opening, no additional
+backend turn for that opening, and a TTS request to repeat the earlier reference
+with independent STT of the matching answer. The capture requires three seconds
+of local output silence before establishing the callback and verifies speech
+only after the connection marker. Timing is local PCM observation, not handset
+or transcript-save timing. The fixture stopped and archived its test conversation.
+
+Earlier attempts remain recorded in private evidence: an initial container lacked
+the resolved daemon socket mount; another could not start a thread while the
+daemon was draining for restart. An early reported audio pass was superseded
+because it could include residual preparation speech. After adding the silence
+boundary, the opening passed, but an exact follow-up phrase failed: STT heard
+"Call Agenda Verified" when the test requested "callback agenda verified."
+The final follow-up asks for the actual prepared reference, verifying retained
+agenda context without depending on an unrelated confirmation phrase. These
+earlier results are not counted as final acceptance.
+
+Clean-container validation ran **366 Python tests (one optional skip)**, **80 Node
+tests**, audio routing, PIN TTS/STT, and SIP keepalive checks successfully. Focused
+callback tests cover the actual PIN-handler-to-Python SIP identity boundary,
+explicit extensions, first-call ownership across reconnects/concurrent callbacks,
+retry identity, expiry, and changed/invalid recipient, thread, or mailbox context.
+Production deployment preserved all 14 saved conversations and verified voice/SIP
+health. No real phone call was placed for this validation; the handset callback
+procedure in [manual tests](MANUAL-TESTS.md) remains a separate arranged check.

@@ -34,7 +34,9 @@ file. Do not edit another project's file merely because it shares the provider.
    Correct or restore invalid edits; a saved file alone is not proof of success.
    Confirm the new next call, timezone, days and any paused check-ins aloud.
 4. Inspect outstanding requests from the affected `schedule:ID` sources. Editing
-   or disabling a recurrence does not cancel materialized requests or retries.
+   or disabling a recurrence does not cancel saved one-off replacements,
+   materialized requests or retries. Use `schedule skip` on matching future
+   replacement occurrences when the caller intends to cancel those too.
    Use `request cancel KEY` only for matching pending work the caller intends to
    withdraw, and verify its status. Never cancel the request owning the active
    phone call to change future meetings: cancellation can disconnect it. Calls
@@ -101,10 +103,13 @@ Correct the edit before claiming it is installed. This reload changes prompt
 text only, not live permissions, audio, extensions, recipients or provider
 settings. Those remain separately administered configuration.
 
-## One-off skips and early meetings
+## One-off skips, rescheduling and early meetings
 
-Use `schedule agenda`, `schedule skip` and `schedule start-early` for one specific
-occurrence, using the key from `schedule next`. An early meeting uses the already
+Use `schedule agenda`, `schedule skip`, `schedule reschedule --at TIMESTAMP` and
+`schedule start-early` for one specific occurrence, using the key from `schedule
+next`. A reschedule changes only that occurrence's future call time; use a full
+date/time with explicit UTC offset, then verify the normalized local time. An
+early meeting uses the already
 connected authenticated call and the occurrence's mailbox agenda, suppressing
 the original dial without changing the recurring schedule. See the
 [occurrence commands](SCHEDULE-OCCURRENCES.md) for scope, crash recovery and
@@ -112,7 +117,7 @@ already-queued requests. Starting early does not automatically complete an agend
 
 ## Limits
 
-The scheduler supports recurring numeric cron and specific occurrence skips,
+The scheduler supports recurring numeric cron, specific occurrence skips and moves,
 not effective-from/until dates or rotating shift calendars. Availability notes
 alone do not block calls. Use the actual occurrence command for "skip tomorrow";
 do not claim that "starting next month" is automated by adding a note.

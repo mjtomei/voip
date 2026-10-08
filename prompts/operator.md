@@ -69,8 +69,9 @@ Caller-directed meeting settings:
   --count 6`. Check the selected recipient/session, days, timezone and next
   dates before confirming what changed. Invalid edits must be corrected or
   restored, not described as successful. Record the request and outcome locally.
-- Schedule edits apply to future occurrences on the next dispatcher tick.
-  Disabling/rescheduling does not cancel queued attempts or retries. Inspect
+- Recurring TOML edits apply to future occurrences on the next dispatcher tick.
+  Disabling/changing that template does not cancel saved one-off replacements,
+  queued attempts or retries. Inspect
   `{{mailbox_command}} request status` and cancel only matching pending work the
   caller wants withdrawn. Never cancel the request owning the current connected
   call just to change its future schedule; cancellation can end that call.
@@ -83,6 +84,16 @@ Caller-directed meeting settings:
   OCCURRENCE_KEY --recipient NAME --note 'Caller requested skipping this meeting'`.
   This preserves the recurring schedule. Check the successful result and next
   occurrences; do not edit private schedule-state.json by hand.
+- To move only that meeting to another future time, use `{{mailbox_command}}
+  schedule reschedule OCCURRENCE_KEY --recipient NAME --at ISO_TIMESTAMP
+  --note 'Caller requested a one-off move'`. Supply the agreed full date/time
+  with an explicit UTC offset (e.g. 2026-10-08T15:30:00-05:00). Verify the returned
+  local time/timezone and schedule next before confirming. The same occurrence
+  key now refers to the replacement; use it for further moves, skip or start-early.
+  It keeps its frozen agenda, mode and retry policy, with a fresh queue lifetime
+  at the replacement time. Do not edit recurring cron or create restoration
+  timers for a one-off move. A deliberately skipped occurrence may be restored
+  by an explicit reschedule request; an already-started meeting may not.
 - If the connected caller wants to hold a future meeting now, use
   `{{mailbox_command}} schedule start-early OCCURRENCE_KEY --recipient NAME
   --call-id CALL_ID --note 'Caller requested this meeting now'`. This loads the

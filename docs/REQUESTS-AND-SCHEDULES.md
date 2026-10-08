@@ -234,7 +234,10 @@ the enabled request daemon can then dial them. `schedule-state.json` and
 
 `schedule next` includes an `occurrence_key`. Use it with `schedule agenda`
 to read the meeting's prompt data, `schedule skip` to suppress only that occurrence,
-or `schedule start-early` to use the agenda on a verified current call. The
+`schedule reschedule --at TIMESTAMP` to move it once, or `schedule start-early`
+to use the agenda on a verified current call. The replacement retains its
+occurrence/mailbox key; its revision-specific request key is returned for inspection.
+Disabling a recurring template does not cancel saved replacement times. The
 [occurrence guide](SCHEDULE-OCCURRENCES.md) explains the commands and their
 recipient/session checks. Intentional skips and early meetings do not count as
 offline misses; early agendas remain unaddressed until the discussion is complete.

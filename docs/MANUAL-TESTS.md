@@ -217,13 +217,14 @@ owned test requests and preserve evidence without retaining credentials. These
 steps require an arranged handset test; automated configuration tests do not
 establish that a caller heard or successfully requested the change.
 
-## A single skipped or early meeting
+## A single skipped, rescheduled or early meeting
 
 Use an isolated project/session and an explicitly arranged test recipient.
 Create a synthetic agenda with a unique topic and a recurrence due at a known
 future local minute. Copy its `occurrence_key` from `schedule next`. The commands
 are documented in [schedule occurrences](SCHEDULE-OCCURRENCES.md); deterministic
-tests run in `test_schedule_occurrences.py` without real accounts or calls.
+tests run in `test_schedule_occurrences.py` and `test_schedule_reschedule.py`
+without real accounts or calls.
 
 1. Inspect `schedule agenda KEY --recipient NAME`: verify the actual agenda text
    and that reading it did not enqueue a call or mark any message addressed.
@@ -245,6 +246,20 @@ tests run in `test_schedule_occurrences.py` without real accounts or calls.
 6. Attempt start-early with a wrong/stale call ID or another recipient and require
    rejection. For an already-active scheduled phone request, require skip to
    refuse rather than hang up. Do not create new keys to bypass that refusal.
+7. With another synthetic occurrence at least several minutes away, ask to move
+   only that meeting to a specific later minute. Require `schedule reschedule`
+   with the authenticated recipient, original occurrence key and explicit-offset
+   timestamp. Verify the operator states the correct new local time. Save the
+   returned replacement request key and before/after recurring TOML hashes.
+8. End the arranged call and restart the idle test stack before the original
+   due minute. Require no ring at the original time and one prepared call at the
+   new time. Answer with the normal PIN and confirm the unique topic audibly.
+   The mailbox must have one occurrence agenda, and tomorrow's recurrence must
+   remain unchanged. Replaying the same move must never create another dial.
+9. Repeat with an earlier future time, and separately keep the matching session's
+   arranged call connected through the replacement time. Require the same-call
+   topic behavior. Repeat a move before dispatch, then skip it, and verify neither
+   superseded time rings. Existing two-recipient/busy tests apply unchanged.
 
 Disable temporary recurrences after testing, cancel/settle only owned pending
 test requests, and preserve private evidence. Never delete production ledgers

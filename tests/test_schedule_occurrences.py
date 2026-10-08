@@ -17,7 +17,7 @@ def stamp(value):
     return datetime.fromisoformat(value).timestamp()
 
 
-class OccurrenceTests(ServiceFixture):
+class OccurrenceFixture(ServiceFixture):
     def setUp(self):
         super().setUp()
         self.now = stamp('2026-10-08T17:00:00+00:00')  # noon Central
@@ -46,6 +46,8 @@ agenda_file="agenda.txt"
         save_json(events.path, state)
         return call_id
 
+
+class OccurrenceTests(OccurrenceFixture):
     def test_agenda_preview_is_read_only_and_returns_the_future_prompt_data(self):
         result = self.occurrences.agenda(self.key, 'bob')
         self.assertEqual(result['agenda'], 'Review the morning; plan the afternoon.')

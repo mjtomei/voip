@@ -763,7 +763,7 @@ def main():
     schedule.add_parser("list")
     schedule.add_parser("next").add_argument("--count", type=int, default=5)
     schedule.add_parser("tick").add_argument("--dry-run", action="store_true")
-    for action in ('agenda', 'skip', 'start-early'):
+    for action in ('agenda', 'skip', 'start-early', 'reschedule'):
         occurrence = schedule.add_parser(action, help='Inspect or change one occurrence without changing its recurring schedule')
         occurrence.add_argument('occurrence_key', help='Copy occurrence_key from schedule next')
         occurrence.add_argument('--recipient', required=True)
@@ -771,6 +771,8 @@ def main():
             occurrence.add_argument('--note', required=True, help='Caller-requested reason for this change')
         if action == 'start-early':
             occurrence.add_argument('--call-id', required=True, help='Current authenticated call in this session')
+        if action == 'reschedule':
+            occurrence.add_argument('--at', required=True, help='New date/time with UTC offset, e.g. 2026-10-08T15:30:00-05:00')
     configuration = commands.add_parser("config").add_subparsers(dest="action", required=True)
     configuration.add_parser("check")
     configuration.add_parser("apply", help="Deploy phone routes and install the configured session services")
@@ -820,11 +822,13 @@ def main():
             result = [{k: v for k, v in s.items() if not k.startswith('_')} for s in scheduler.definitions()]
         elif args.action == "next":
             result = scheduler.next(args.count)
-        elif args.action in {'agenda', 'skip', 'start-early'}:
+        elif args.action in {'agenda', 'skip', 'start-early', 'reschedule'}:
             from schedule_occurrences import Occurrences
             occurrences = Occurrences(project)
             if args.action == 'agenda':
                 result = occurrences.agenda(args.occurrence_key, args.recipient)
+            elif args.action == 'reschedule':
+                result = occurrences.reschedule(args.occurrence_key, args.recipient, args.at, args.note)
             else:
                 result = occurrences.change(args.occurrence_key, args.recipient, args.note,
                     args.call_id if args.action == 'start-early' else None)

@@ -71,17 +71,27 @@ class Scheduler:
         Keep occurrence identities so restarts and repeated DST minutes cannot
         double-count. New schedules do not invent a history before first observation.
         """
+        missed = []
+        # One-off replacements exist independently of the recurring template.
+        # Count downtime at their new time, never again at the original minute.
+        for key, old in state['occurrences'].items():
+            if old['state'] != 'rescheduled' or old['rescheduled_at'] >= now:
+                continue
+            saved = old['spec']
+            if saved['misfire'] == 'enqueue' and old['rescheduled_at'] >= now - saved['max_lateness_seconds']:
+                continue
+            old.update(state='skipped', outcome='scheduler_offline')
+            missed.append(key)
         observed = state.get('tracking_minute')
         if observed is None:
-            return []
+            return missed
         # last_minute advances only after all due occurrences are materialized.
         # Include an unfinished minute after a crash, without inventing occurrences
         # before a schedule was enabled or its configuration was first observed.
         prior = state.get('last_minute')
         prior = observed - 60 if prior is None else prior
         if prior >= now - 60:
-            return []
-        missed = []
+            return missed
         for saved in state.get('tracked_schedules', {}).values():
             cron, zone = Cron(saved['cron']), ZoneInfo(saved['timezone'])
             first = max(prior + 60, saved.get('observed_from', observed))
@@ -174,25 +184,39 @@ class Scheduler:
         if not 1 <= count <= 20:
             raise SetupError('Select 1–20 upcoming occurrences')
         definitions = self.definitions()
-        if not definitions:
-            return []
         results, seen = [], set()
         occurrences = self.load()['occurrences']
         first = int(self.clock() // 60) * 60 + 60
+        for key, old in occurrences.items():
+            if old['state'] == 'rescheduled' and old['rescheduled_at'] >= first:
+                results.append(self.upcoming(key, old['spec'], old['rescheduled_at'], old['scheduled_at']))
+        if not definitions:
+            return sorted(results, key=lambda r: (r['utc_time'], r['occurrence_key']))[:count]
         for stamp in range(first, first + 370 * 86400, 60):
             for schedule in definitions:
                 local = datetime.fromtimestamp(stamp, schedule['_zone'])
                 key = 'schedule:' + schedule['id'] + ':' + local.strftime('%Y%m%dT%H%M')
-                if occurrences.get(key, {}).get('state') in {'skipped', 'early_pending'}:
+                old = occurrences.get(key, {})
+                if 'rescheduled_at' in old or old.get('state') in {'skipped', 'early_pending'}:
                     continue
                 if schedule['_cron'].matches(local) and key not in seen:
                     seen.add(key)
-                    results.append({'occurrence_key': key, 'schedule': schedule['id'], 'session': schedule['session'],
-                                    'recipient': schedule['recipient'], 'local_time': local.isoformat(),
-                                    'utc_time': datetime.fromtimestamp(stamp, timezone.utc).isoformat()})
-                    if len(results) >= count:
-                        return results
-        return results
+                    results.append(self.upcoming(key, schedule, stamp))
+            if len(seen) >= count:
+                break
+        return sorted(results, key=lambda r: (r['utc_time'], r['occurrence_key']))[:count]
+
+    @staticmethod
+    def upcoming(key, spec, stamp, original=None):
+        result = {'occurrence_key': key, 'schedule': spec['id'], 'session': spec['session'],
+                  'recipient': spec['recipient'],
+                  'local_time': datetime.fromtimestamp(stamp, ZoneInfo(spec['timezone'])).isoformat(),
+                  'utc_time': datetime.fromtimestamp(stamp, timezone.utc).isoformat()}
+        if original is not None:
+            result.update(rescheduled=True,
+                original_local_time=datetime.fromtimestamp(original, ZoneInfo(spec['timezone'])).isoformat(),
+                original_utc_time=datetime.fromtimestamp(original, timezone.utc).isoformat())
+        return result
 
     def tick(self, dry_run=False):
         definitions = self.definitions()
@@ -216,15 +240,19 @@ class Scheduler:
                 save_json(self.path, state)
             def materialize(key, old):
                 saved = old['spec']
-                if self.clock() >= old['created_at'] + saved['ttl_seconds']:
+                due = old.get('rescheduled_at', old['created_at'])
+                if self.clock() >= due + saved['ttl_seconds']:
                     old['state'] = 'expired'
                 else:
                     project = Project(self.project.root, saved['session'])
+                    if ('recipient_number' in old and
+                            resolve_recipient(project, saved['recipient'])['number'] != old['recipient_number']):
+                        raise SetupError('Scheduled recipient number changed; inspect the saved occurrence')
                     Mailbox(project, saved['recipient']).post('schedule:' + saved['id'], saved['reason'][:240], old['body'], key)
-                    record = Requests(project).enqueue(key, 'call', saved['reason'], [key],
+                    record = Requests(project).enqueue(old.get('request_key', key), 'call', saved['reason'], [key],
                         recipient=saved['recipient'], mode=saved['mode'], ttl_seconds=saved['ttl_seconds'],
                         redial=saved['redial'], source='schedule:' + saved['id'])
-                    Requests(project).update(key, expires_at=min(record['expires_at'], old['created_at'] + saved['ttl_seconds']))
+                    Requests(project).update(record['key'], expires_at=min(record['expires_at'], due + saved['ttl_seconds']))
                     old.update(state='enqueued', request_key=record['key'])
                 save_json(self.path, state)
                 results.append({'key': key, 'state': old['state']})
@@ -237,6 +265,14 @@ class Scheduler:
                         materialize_early(self.project, state, key)
                     elif old['state'] == 'pending':
                         materialize(key, old)
+            for key, old in state['occurrences'].items():
+                if old['state'] == 'rescheduled' and old['rescheduled_at'] <= now:
+                    if dry_run:
+                        results.append({'key': key, 'session': old['spec']['session'], 'recipient': old['spec']['recipient']})
+                    else:
+                        old['state'] = 'pending'
+                        save_json(self.path, state)
+                        materialize(key, old)
             for schedule in definitions:
                 first = now if prior is None or schedule['misfire'] == 'skip' else max(prior + 60, now - schedule['max_lateness_seconds'])
                 for stamp in range(int(first // 60) * 60, now + 1, 60):
@@ -246,7 +282,7 @@ class Scheduler:
                     # Repeated fall-back wall-clock minutes produce one occurrence.
                     key = 'schedule:' + schedule['id'] + ':' + local.strftime('%Y%m%dT%H%M')
                     old = state['occurrences'].get(key)
-                    if old and old['state'] in {'enqueued', 'expired', 'skipped', 'early_pending'}:
+                    if old and ('rescheduled_at' in old or old['state'] in {'enqueued', 'expired', 'skipped', 'early_pending'}):
                         continue
                     if dry_run:
                         results.append({'key': key, 'session': schedule['session'], 'recipient': schedule['recipient']})
